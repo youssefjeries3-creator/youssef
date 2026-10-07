@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>موقع تسجيل الفيديو الاحترافي</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        h1 {
+            color: #ff4757;
+            margin-bottom: 20px;
+        }
+        .video-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 12px;
+            background-color: #000;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            border: 2px solid #333;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #startBtn { background-color: #2ed573; color: white; }
+        #startBtn:disabled { background-color: #57606f; cursor: not-allowed; }
+        
+        #stopBtn { background-color: #ff4757; color: white; }
+        #stopBtn:disabled { background-color: #57606f; cursor: not-allowed; }
+
+        #downloadBtn { background-color: #1e90ff; color: white; }
+        #downloadBtn:disabled { background-color: #57606f; cursor: not-allowed; }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+        .status {
+            font-size: 18px;
+            font-weight: 500;
+            color: #ffa502;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📸 مسجل الفيديو الرقمي</h1>
+    
+    <div class="status" id="statusText">الحالة: الكاميرا مغلقة</div>
+
+    <div class="video-container">
+        <!-- شاشة العرض المباشر من الكاميرا -->
+        <div>
+            <h3>🎥 بث مباشر من الكاميرا</h3>
+            <video id="liveVideo" autoplay playsinline muted></video>
+        </div>
+        <!-- شاشة عرض الفيديو بعد التسجيل -->
+        <div>
+            <h3>🎬 الفيديو المسجل</h3>
+            <video id="recordedVideo" controls></video>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn">🔴 بدء التسجيل</button>
+        <button id="stopBtn" disabled>⏹️ إيقاف التسجيل</button>
+        <button id="downloadBtn" disabled>💾 تحميل الفيديو</button>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let recordedChunks = [];
+        
+        const liveVideo = document.getElementById('liveVideo');
+        const recordedVideo = document.getElementById('recordedVideo');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusText = document.getElementById('statusText');
+
+        // 1. طلب الإذن وفتح الكاميرا فور تحميل الصفحة
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                liveVideo.srcObject = stream;
+                window.localStream = stream; // حفظ البث لإيقافه لاحقاً إذا لزم الأمر
+                statusText.innerText = "الحالة: جاهز للتسجيل";
+            } catch (err) {
+                console.error("خطأ في الوصول إلى الكاميرا: ", err);
+                statusText.innerText = "خطأ: يرجى إعطاء صلاحية الكاميرا والميكروفون للمتصفح.";
+                startBtn.disabled = true;
+            }
+        }
+
+        // تشغيل الكاميرا تلقائياً
+        initCamera();
+
+        // 2. عند الضغط على زر بدء التسجيل
+        startBtn.addEventListener('click', () => {
+            recordedChunks = []; // تفريغ البيانات السابقة
+            
+            // إعداد أداة التسجيل باستخدام البث المباشر للكاميرا
+            mediaRecorder = new MediaRecorder(window.localStream, { mimeType: 'video/webm;' });
+            
+            // تجميع البيانات أثناء التسجيل
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunks.push(e.data);
+                }
+            };
+
+            // عند إيقاف التسجيل تماماً، قم بمعالجة الفيديو وعرضه في الشاشة الثانية
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const videoURL = URL.createObjectURL(blob);
+                recordedVideo.src = videoURL;
+                
+                // تفعيل زر التحميل وحفظ الرابط فيه
+                downloadBtn.disabled = false;
+                downloadBtn.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = videoURL;
+                    a.download = 'my-video.webm'; // اسم الملف عند التحميل
+                    a.click();
+                };
+            };
+
+            // بدء التسجيل الفعلي
+            mediaRecorder.start();
+            statusText.innerText = "الحالة: 🔴 جاري تسجيل الفيديو الآن...";
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            downloadBtn.disabled = true;
+        });
+
+        // 3. عند الضغط على زر إيقاف التسجيل
+        stopBtn.addEventListener('click', () => {
+            mediaRecorder.stop();
+            statusText.innerText = "الحالة: ⏹️ تم إيقاف التسجيل وجاهز للمعاينة/التحميل";
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+    </script>
+
+</body>
+</html>
